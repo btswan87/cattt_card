@@ -1,7 +1,7 @@
 // ─── Supabase config ──────────────────────────────────────────────
 // Rotate these in Supabase → Settings → API if the key is ever exposed.
 const SUPABASE_URL  = 'https://nlcimexebvjgwxcemqxj.supabase.co';
-const SUPABASE_ANON = 'YOUR_NEW_ANON_KEY_HERE';   // replace after rotating
+const SUPABASE_ANON = 'sb_publishable_6LGcKrNiO3nIQQnyPk0pBA_PRFv_0oJ';   // replace after rotating
 
 // ─── App config ───────────────────────────────────────────────────
 const RECIPIENT    = 'CattyWampus';
