@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Birthday Card</title>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&family=Caveat:wght@700&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; margin:0; }
+  :root{
+    --bg:#0f1f14; --surface:#172210; --card:#1e3018;
+    --border:rgba(255,255,255,.10); --cream:#fdf8ec;
+    --gold:#ffd97a; --red:#ff6b6b; --green:#7eea9b; --dim:rgba(255,255,255,.5);
+  }
+  body{ min-height:100vh; background:var(--bg); color:var(--cream); font-family:'Nunito',sans-serif; }
+
+  /* ── login screen ── */
+  #login-screen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+  }
+  .login-box{
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:18px; padding:40px 36px; width:100%; max-width:380px;
+    box-shadow:0 24px 60px rgba(0,0,0,.5);
+  }
+  .login-box h1{ font-family:'Caveat',cursive; font-size:2rem; color:var(--gold); margin-bottom:6px; }
+  .login-box p{ font-size:.88rem; opacity:.65; margin-bottom:28px; }
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:.82rem; opacity:.75; margin-bottom:5px; font-weight:700; }
+  .field input{
+    width:100%; padding:11px 14px; border-radius:9px;
+    border:1px solid var(--border); background:rgba(255,255,255,.07);
+    color:var(--cream); font-family:'Nunito',sans-serif; font-size:1rem;
+  }
+  .login-btn{
+    width:100%; padding:13px; border-radius:10px; border:none; cursor:pointer;
+    background:var(--gold); color:#4a3000; font-family:'Nunito',sans-serif;
+    font-weight:800; font-size:1.05rem; margin-top:6px;
+    transition:opacity .15s;
+  }
+  .login-btn:hover{ opacity:.9; }
+  .login-err{ margin-top:14px; font-size:.88rem; color:var(--red); min-height:1.2em; text-align:center; }
+
+  /* ── admin panel ── */
+  #admin-screen{ display:none; }
+  .admin-header{
+    background:var(--surface); border-bottom:1px solid var(--border);
+    padding:16px 24px; display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:10;
+  }
+  .admin-header h1{ font-family:'Caveat',cursive; font-size:1.8rem; color:var(--gold); }
+  .admin-header .meta{ font-size:.85rem; opacity:.6; }
+  .logout-btn{
+    padding:8px 18px; border-radius:8px; border:1px solid var(--border);
+    background:transparent; color:var(--cream); cursor:pointer;
+    font-family:'Nunito',sans-serif; font-weight:700; font-size:.88rem;
+    transition:background .15s;
+  }
+  .logout-btn:hover{ background:rgba(255,255,255,.08); }
+
+  .admin-body{ max-width:860px; margin:0 auto; padding:28px 16px 60px; }
+  .admin-body h2{ font-size:1.1rem; font-weight:800; opacity:.7; margin-bottom:18px; text-transform:uppercase; letter-spacing:.05em; }
+
+  /* ── entry card ── */
+  .entry-card{
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:16px; margin-bottom:12px; display:flex; gap:14px; align-items:flex-start;
+  }
+  .entry-card.hidden-entry{ opacity:.45; }
+
+  .entry-thumb{
+    width:72px; min-width:72px; height:72px; border-radius:6px;
+    object-fit:cover; background:rgba(255,255,255,.06);
+    display:flex; align-items:center; justify-content:center;
+    font-size:2rem; color:rgba(255,255,255,.3); overflow:hidden;
+  }
+  .entry-thumb img{ width:100%; height:100%; object-fit:cover; }
+
+  .entry-body{ flex:1; min-width:0; }
+  .entry-from{ font-weight:800; font-size:.95rem; margin-bottom:4px; }
+  .entry-msg{ font-size:.88rem; opacity:.7; white-space:pre-wrap; word-break:break-word; max-height:60px; overflow:hidden; }
+  .entry-meta{ font-size:.78rem; opacity:.45; margin-top:4px; }
+
+  .entry-actions{ display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
+  .act-btn{
+    padding:6px 13px; border-radius:7px; border:1px solid var(--border);
+    background:rgba(255,255,255,.05); color:var(--cream); cursor:pointer;
+    font-family:'Nunito',sans-serif; font-size:.82rem; font-weight:700;
+    white-space:nowrap; transition:background .12s;
+    display:flex; align-items:center; gap:5px;
+  }
+  .act-btn:hover{ background:rgba(255,255,255,.12); }
+  .act-btn.danger{ border-color:rgba(255,107,107,.35); color:var(--red); }
+  .act-btn.danger:hover{ background:rgba(255,107,107,.12); }
+  .act-btn.success{ border-color:rgba(126,234,155,.35); color:var(--green); }
+
+  .order-btns{ display:flex; gap:4px; }
+  .ord-btn{
+    width:30px; height:30px; border-radius:6px; border:1px solid var(--border);
+    background:rgba(255,255,255,.05); color:var(--cream); cursor:pointer;
+    font-size:1rem; display:flex; align-items:center; justify-content:center;
+    transition:background .12s;
+  }
+  .ord-btn:hover{ background:rgba(255,255,255,.12); }
+  .ord-btn:disabled{ opacity:.25; cursor:default; }
+
+  .empty-state{ text-align:center; padding:60px 0; opacity:.45; font-size:1.1rem; }
+  .loading-state{ text-align:center; padding:40px 0; opacity:.5; }
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:#2a4a30; border:1px solid rgba(126,234,155,.3);
+    color:var(--green); padding:10px 22px; border-radius:10px;
+    font-size:.92rem; font-weight:700; pointer-events:none;
+    opacity:0; transition:opacity .2s; z-index:99;
+  }
+  .toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<!-- ── login ── -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>🐸 Card Admin</h1>
+    <p>Sign in to manage birthday card entries for CattyWampus.</p>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="your@email.com" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="login-btn" id="login-btn">Sign in</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- ── admin panel ── -->
+<div id="admin-screen">
+  <div class="admin-header">
+    <div>
+      <h1>Card Admin</h1>
+      <div class="meta" id="admin-meta">Loading...</div>
+    </div>
+    <button class="logout-btn" id="logout-btn">Sign out</button>
+  </div>
+  <div class="admin-body">
+    <h2>Entries</h2>
+    <div id="entries-list"><div class="loading-state">Loading entries...</div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+/* ── toast helper ── */
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+/* ── auth ── */
+const loginScreen = document.getElementById('login-screen');
+const adminScreen = document.getElementById('admin-screen');
+
+async function checkSession(){
+  const {data:{session}} = await sb.auth.getSession();
+  if(session){ showAdmin(session.user); }
+}
+
+document.getElementById('login-btn').addEventListener('click', async ()=>{
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const err   = document.getElementById('login-err');
+  const btn   = document.getElementById('login-btn');
+  err.textContent=''; btn.disabled=true; btn.textContent='Signing in...';
+
+  const {error} = await sb.auth.signInWithPassword({email, password:pass});
+  btn.disabled=false; btn.textContent='Sign in';
+  if(error){ err.textContent=error.message; return; }
+  const {data:{session}} = await sb.auth.getSession();
+  showAdmin(session.user);
+});
+
+document.getElementById('login-pass').addEventListener('keydown', ev=>{
+  if(ev.key==='Enter') document.getElementById('login-btn').click();
+});
+
+document.getElementById('logout-btn').addEventListener('click', async ()=>{
+  await sb.auth.signOut();
+  adminScreen.style.display='none';
+  loginScreen.style.display='flex';
+});
+
+function showAdmin(user){
+  loginScreen.style.display='none';
+  adminScreen.style.display='block';
+  document.getElementById('admin-meta').textContent = user.email;
+  loadEntries();
+}
+
+/* ── load & render entries ── */
+let allEntries = [];
+
+async function loadEntries(){
+  const list = document.getElementById('entries-list');
+  list.innerHTML = '<div class="loading-state">Loading...</div>';
+
+  const {data, error} = await sb
+    .from(TABLE_NAME)
+    .select('*')
+    .order('sort_order', {ascending:true})
+    .order('created_at', {ascending:true});
+
+  if(error){ list.innerHTML='<div class="loading-state">Error: '+error.message+'</div>'; return; }
+  allEntries = data||[];
+  renderEntries();
+}
+
+function renderEntries(){
+  const list = document.getElementById('entries-list');
+  if(!allEntries.length){ list.innerHTML='<div class="empty-state">No entries yet.</div>'; return; }
+
+  list.innerHTML='';
+  allEntries.forEach((e,i)=>{
+    const card = document.createElement('div');
+    card.className='entry-card'+(e.hidden?' hidden-entry':'');
+    card.dataset.id=e.id;
+
+    /* thumb */
+    let thumbHTML;
+    if(e.type==='photo' && e.photo_url){
+      thumbHTML=`<div class="entry-thumb"><img src="${e.photo_url}" alt="" loading="lazy"></div>`;
+    } else {
+      thumbHTML=`<div class="entry-thumb">✏️</div>`;
+    }
+
+    const preview = e.type==='text'
+      ? (e.message||'').slice(0,120)+(e.message?.length>120?'…':'')
+      : '📷 Photo';
+
+    const dateStr = new Date(e.created_at).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+
+    card.innerHTML=`
+      ${thumbHTML}
+      <div class="entry-body">
+        <div class="entry-from">${e.contributor||'(no name)'}</div>
+        <div class="entry-msg"${e.font?` style="font-family:${e.font},sans-serif"`:''}>${preview}</div>
+        <div class="entry-meta">${e.type} · ${dateStr}${e.hidden?' · hidden':''}</div>
+      </div>
+      <div class="entry-actions">
+        <div class="order-btns">
+          <button class="ord-btn up-btn" title="Move up" ${i===0?'disabled':''}>▲</button>
+          <button class="ord-btn dn-btn" title="Move down" ${i===allEntries.length-1?'disabled':''}>▼</button>
+        </div>
+        <button class="act-btn toggle-btn ${e.hidden?'success':''}">${e.hidden?'👁 Show':'🙈 Hide'}</button>
+        <button class="act-btn danger del-btn">🗑 Delete</button>
+      </div>`;
+
+    /* up */
+    card.querySelector('.up-btn').addEventListener('click', ()=> moveEntry(i,-1));
+    /* down */
+    card.querySelector('.dn-btn').addEventListener('click', ()=> moveEntry(i,+1));
+    /* hide/show */
+    card.querySelector('.toggle-btn').addEventListener('click', ()=> toggleHidden(e));
+    /* delete */
+    card.querySelector('.del-btn').addEventListener('click', ()=> deleteEntry(e));
+
+    list.appendChild(card);
+  });
+}
+
+/* ── reorder ── */
+async function moveEntry(i, dir){
+  const j = i+dir;
+  if(j<0 || j>=allEntries.length) return;
+
+  /* swap sort_order values */
+  const a=allEntries[i], b=allEntries[j];
+  const aOrd=a.sort_order, bOrd=b.sort_order;
+
+  /* if orders are equal (e.g. both 0 on first run) use index-based values */
+  const newAOrd = bOrd!==aOrd ? bOrd : j*1000;
+  const newBOrd = bOrd!==aOrd ? aOrd : i*1000;
+
+  const [r1,r2] = await Promise.all([
+    sb.from(TABLE_NAME).update({sort_order:newAOrd}).eq('id',a.id),
+    sb.from(TABLE_NAME).update({sort_order:newBOrd}).eq('id',b.id),
+  ]);
+  if(r1.error||r2.error){ toast('Reorder failed'); return; }
+
+  /* optimistic local swap */
+  [allEntries[i],allEntries[j]]=[allEntries[j],allEntries[i]];
+  allEntries[i].sort_order=newBOrd;
+  allEntries[j].sort_order=newAOrd;
+  renderEntries();
+  toast('Order updated');
+}
+
+/* ── hide / show ── */
+async function toggleHidden(e){
+  const {error} = await sb.from(TABLE_NAME).update({hidden:!e.hidden}).eq('id',e.id);
+  if(error){ toast('Error: '+error.message); return; }
+  e.hidden=!e.hidden;
+  renderEntries();
+  toast(e.hidden?'Entry hidden':'Entry visible');
+}
+
+/* ── delete ── */
+async function deleteEntry(e){
+  if(!confirm(`Delete entry from "${e.contributor}"? This cannot be undone.`)) return;
+
+  /* remove photo from storage if applicable */
+  if(e.type==='photo' && e.photo_url){
+    const parts = e.photo_url.split('/'+BUCKET_NAME+'/');
+    if(parts[1]){
+      await sb.storage.from(BUCKET_NAME).remove([parts[1]]);
+    }
+  }
+
+  const {error} = await sb.from(TABLE_NAME).delete().eq('id',e.id);
+  if(error){ toast('Delete failed: '+error.message); return; }
+  allEntries=allEntries.filter(x=>x.id!==e.id);
+  renderEntries();
+  toast('Entry deleted');
+}
+
+/* ── subscribe to new entries in real-time ── */
+sb.channel('entries-admin')
+  .on('postgres_changes',{event:'INSERT',schema:'public',table:TABLE_NAME}, ()=> loadEntries())
+  .subscribe();
+
+/* ── boot ── */
+checkSession();
+</script>
+</body>
+</html>
