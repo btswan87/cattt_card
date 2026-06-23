@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Happy Birthday, CattyWampus!</title>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Shadows+Into+Light&family=Nunito:wght@400;700;800&family=Architects+Daughter&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest-deep:#0b2113;
+    --forest-mid:#143019;
+    --forest-floor:#1c3f22;
+    --brass:#c9a45c;
+    --brass-dark:#8f7136;
+    --ink:#2b2b33;
+    --cream:#fdf8ec;
+    --lens-size:220px;
+    --zoom:2.1;
+  }
+  *{ box-sizing:border-box; margin:0; }
+  body{
+    min-height:100vh;
+    background:linear-gradient(var(--forest-deep), var(--forest-mid) 45%, var(--forest-floor));
+    font-family:'Nunito', system-ui, sans-serif;
+    color:var(--cream);
+    display:flex; flex-direction:column; align-items:center;
+    padding:24px 12px 60px;
+    overflow-x:hidden;
+  }
+  .forest{ position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+  .fireflies{ position:fixed; inset:0; pointer-events:none; z-index:0; }
+  .fireflies span{
+    position:absolute; width:5px; height:5px; border-radius:50%;
+    background:#fdffce; box-shadow:0 0 10px 3px rgba(244,255,170,.65);
+    animation:drift var(--dur,12s) ease-in-out var(--delay,0s) infinite alternate,
+              twinkle 3.2s ease-in-out var(--delay,0s) infinite alternate;
+  }
+  @keyframes drift{ from{transform:translate(0,0)} to{transform:translate(var(--dx,30px),var(--dy,-40px))} }
+  @keyframes twinkle{ from{opacity:.25} to{opacity:.95} }
+
+  header{ text-align:center; z-index:2; margin-bottom:18px; }
+  h1{
+    font-family:'Caveat',cursive; font-size:clamp(2.4rem,6vw,4rem); font-weight:700;
+    color:#ffd97a; text-shadow:0 2px 0 rgba(0,0,0,.35); letter-spacing:.02em;
+  }
+  .subtitle{ font-size:.95rem; opacity:.85; max-width:520px; margin:6px auto 0; }
+  .controls{ display:flex; gap:12px; margin:14px 0 22px; z-index:2; flex-wrap:wrap; justify-content:center; }
+  button{
+    font-family:'Nunito',sans-serif; font-weight:800; font-size:1rem;
+    padding:12px 22px; border-radius:999px; border:none; cursor:pointer;
+    background:#ffd97a; color:#4a3000;
+    box-shadow:0 4px 0 #b78f33, 0 8px 16px rgba(0,0,0,.35);
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  button:hover{ transform:translateY(-2px); }
+  button:active{ transform:translateY(2px); box-shadow:0 2px 0 #b78f33, 0 4px 8px rgba(0,0,0,.35); }
+  button:focus-visible{ outline:3px solid #fff; outline-offset:3px; }
+  button.secondary{ background:rgba(255,255,255,.12); color:var(--cream); box-shadow:0 4px 0 rgba(0,0,0,.3); }
+
+  /* ── board ── */
+  .board-frame{
+    position:relative; z-index:1; padding:16px;
+    background:linear-gradient(135deg,#5d4426,#7a5a33 45%,#4c361e);
+    border-radius:22px;
+    box-shadow:0 18px 50px rgba(0,0,0,.55), inset 0 0 0 3px rgba(255,255,255,.06), inset 0 0 26px rgba(20,40,16,.8);
+    max-width:1000px; width:100%;
+  }
+  .board{
+    position:relative;
+    background:
+      radial-gradient(ellipse at 50% 28%,rgba(244,255,200,.20),transparent 55%),
+      radial-gradient(circle at 18% 80%,rgba(0,0,0,.28),transparent 42%),
+      radial-gradient(circle at 84% 16%,rgba(0,0,0,.22),transparent 45%),
+      linear-gradient(#3f6a2e,#2c4d20 70%,#234019);
+    border-radius:12px; overflow:hidden;
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+    gap:58px 24px; padding:64px 30px 36px;
+  }
+  #collage{ cursor:none; touch-action:none; }
+
+  /* ── notes ── */
+  .note{
+    position:relative; background:var(--paper,#fffdf5); color:var(--ink);
+    padding:20px 16px 14px; min-height:150px;
+    box-shadow:0 6px 14px rgba(0,0,0,.45);
+    transform:rotate(var(--tilt,0deg)); border-radius:3px;
+    display:flex; flex-direction:column; justify-content:space-between;
+    transition:box-shadow .4s ease;
+  }
+  .note.photo{ padding:8px 8px 30px; background:#fff; }
+  .note.photo img{ width:100%; height:auto; display:block; }
+  .note.photo .from{ position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:.95rem; color:#555; }
+  .note.wide{ grid-column:1/-1; }
+  .note .msg{ font-size:1.2rem; line-height:1.3; font-weight:400; }
+  .note .from{ font-family:'Shadows Into Light',cursive; font-size:1.05rem; text-align:right; margin-top:10px; opacity:.8; }
+  .note.spotlit{ box-shadow:0 0 0 4px #ffd97a, 0 0 34px 10px rgba(255,217,122,.55); z-index:3; }
+
+  /* ── frogs ── */
+  .frog{
+    position:absolute; top:-48px; left:50%; width:96px; transform:translateX(-50%);
+    z-index:1; pointer-events:none; filter:drop-shadow(0 3px 3px rgba(0,0,0,.3));
+  }
+  .frog .lid{
+    transform:scaleY(0); transform-origin:center top; transform-box:fill-box;
+    animation:blink 6s infinite;
+  }
+  @keyframes blink{ 0%,91%,100%{transform:scaleY(0)} 94%,96%{transform:scaleY(1)} }
+
+  /* ── lens ── */
+  #lens{
+    position:absolute; z-index:10;
+    width:var(--lens-size); height:var(--lens-size); border-radius:50%;
+    border:7px solid var(--brass);
+    box-shadow:inset 0 0 14px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.55), inset 0 0 0 2px var(--brass-dark);
+    overflow:hidden; pointer-events:none; opacity:0; transition:opacity .25s ease;
+    background:#2c4d20;
+  }
+  #lens.visible{ opacity:1; }
+  #lens .glass{
+    position:absolute; inset:0; border-radius:50%;
+    background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.28),transparent 45%);
+    pointer-events:none; z-index:2;
+  }
+  #lens-inner{ position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform; }
+  #handle{
+    position:absolute; z-index:9; width:16px; height:90px;
+    background:linear-gradient(90deg,#6b4226,#8a5a35 50%,#6b4226);
+    border-radius:8px; box-shadow:0 6px 14px rgba(0,0,0,.5);
+    pointer-events:none; opacity:0; transition:opacity .25s ease;
+  }
+  #handle.visible{ opacity:1; }
+
+  /* ── lightbox ── */
+  #collage.lens-off{ cursor:default; }
+  #collage.lens-off .note.photo{ cursor:zoom-in; }
+  #lightbox{
+    position:fixed; inset:0; z-index:100;
+    background:rgba(8,16,16,.9);
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; padding:24px; cursor:zoom-out;
+  }
+  #lightbox.open{ display:flex; }
+  #lightbox img{ max-width:92vw; max-height:82vh; background:#fff; padding:8px; border-radius:4px; box-shadow:0 24px 80px rgba(0,0,0,.7); }
+  #lightbox .caption{ font-family:'Shadows Into Light',cursive; font-size:1.5rem; color:var(--cream); }
+  #lightbox .hint{ font-size:.8rem; opacity:.55; color:var(--cream); }
+
+  /* ── loading state ── */
+  .board-loading{
+    grid-column:1/-1; text-align:center; padding:60px 0;
+    font-family:'Caveat',cursive; font-size:1.8rem; color:rgba(255,255,255,.5);
+  }
+
+  /* ── submission form ── */
+  .submit-section{
+    z-index:2; max-width:680px; width:100%; margin-top:48px;
+    background:rgba(0,0,0,.35); border-radius:18px; padding:32px;
+    border:1px solid rgba(255,255,255,.08);
+    backdrop-filter:blur(6px);
+  }
+  .submit-section h2{
+    font-family:'Caveat',cursive; font-size:2rem; color:#ffd97a;
+    margin-bottom:6px;
+  }
+  .submit-section p{ font-size:.9rem; opacity:.75; margin-bottom:24px; }
+
+  .tab-row{ display:flex; gap:0; margin-bottom:24px; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,.15); }
+  .tab-btn{
+    flex:1; padding:10px; background:rgba(255,255,255,.07); color:var(--cream);
+    border:none; cursor:pointer; font-family:'Nunito',sans-serif; font-weight:700;
+    font-size:.95rem; transition:background .15s;
+  }
+  .tab-btn.active{ background:rgba(255,217,122,.25); color:#ffd97a; }
+
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  .field{ margin-bottom:18px; }
+  .field label{ display:block; font-size:.85rem; opacity:.8; margin-bottom:6px; font-weight:700; }
+  .field input[type=text],
+  .field textarea{
+    width:100%; padding:10px 14px; border-radius:8px;
+    border:1px solid rgba(255,255,255,.2);
+    background:rgba(255,255,255,.08); color:var(--cream);
+    font-family:'Nunito',sans-serif; font-size:1rem;
+  }
+  .field textarea{ min-height:110px; resize:vertical; }
+  .field input[type=text]::placeholder,
+  .field textarea::placeholder{ opacity:.45; }
+  .field input[type=file]{ color:var(--cream); font-size:.9rem; }
+
+  .font-picker{ display:flex; flex-wrap:wrap; gap:8px; }
+  .font-opt{
+    padding:8px 14px; border-radius:8px; border:2px solid rgba(255,255,255,.15);
+    background:rgba(255,255,255,.06); color:var(--cream); cursor:pointer;
+    font-size:1.1rem; transition:border-color .15s, background .15s;
+  }
+  .font-opt.selected{ border-color:#ffd97a; background:rgba(255,217,122,.18); }
+
+  .msg-preview{
+    margin-top:12px; padding:14px; background:#fffdf5; border-radius:6px;
+    color:#2b2b33; min-height:54px; font-size:1.2rem; word-break:break-word;
+    border:1px solid rgba(0,0,0,.1);
+  }
+
+  .photo-preview{ margin-top:10px; }
+  .photo-preview img{ max-width:100%; max-height:220px; border-radius:6px; display:none; }
+
+  .submit-btn{
+    width:100%; margin-top:8px; padding:14px;
+    font-size:1.1rem; border-radius:12px;
+  }
+  .status-msg{ margin-top:14px; text-align:center; font-size:.95rem; min-height:1.4em; }
+  .status-msg.ok{ color:#9ef5b0; }
+  .status-msg.err{ color:#ffa8a8; }
+
+  footer{ margin-top:26px; font-size:.85rem; opacity:.6; z-index:2; text-align:center; }
+
+  @media(prefers-reduced-motion:reduce){
+    *{ transition:none !important; }
+    .frog .lid,.fireflies span{ animation:none !important; }
+  }
+  @media(max-width:520px){
+    :root{ --lens-size:160px; --zoom:1.9; }
+    .board{ grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:46px 14px; padding:52px 16px 26px; }
+    .frog{ width:76px; top:-38px; }
+  }
+</style>
+</head>
+<body>
+
+<svg class="forest" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b2113"/>
+      <stop offset=".5" stop-color="#143019"/>
+      <stop offset="1" stop-color="#1c3f22"/>
+    </linearGradient>
+    <radialGradient id="sunpool" cx=".5" cy=".15" r=".8">
+      <stop offset="0" stop-color="#f4ffd0" stop-opacity=".30"/>
+      <stop offset=".45" stop-color="#cdeb8a" stop-opacity=".10"/>
+      <stop offset="1" stop-color="#cdeb8a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1440" height="900" fill="url(#sky)"/>
+  <g fill="#0a1a0f" opacity=".85">
+    <rect x="52"   y="0" width="44" height="900" rx="20"/>
+    <rect x="168"  y="0" width="26" height="900" rx="13" opacity=".7"/>
+    <rect x="1248" y="0" width="44" height="900" rx="20"/>
+    <rect x="1356" y="0" width="28" height="900" rx="14" opacity=".7"/>
+  </g>
+  <g fill="#081608" opacity=".92">
+    <ellipse cx="180"  cy="-50" rx="430" ry="200"/>
+    <ellipse cx="740"  cy="-100" rx="540" ry="210"/>
+    <ellipse cx="1300" cy="-40" rx="440" ry="200"/>
+  </g>
+  <g fill="#f8ffcf">
+    <polygon points="630,0 790,0 1030,900 770,900" opacity=".06"/>
+    <polygon points="500,0 580,0 690,900 550,900" opacity=".045"/>
+  </g>
+  <rect width="1440" height="900" fill="url(#sunpool)"/>
+  <g stroke="#0c2212" stroke-width="10" fill="none" stroke-linecap="round" opacity=".9">
+    <path d="M40 900 q30 -120 92 -152"/>
+    <path d="M118 900 q12 -92 72 -132"/>
+    <path d="M1396 900 q-30 -120 -92 -152"/>
+    <path d="M1322 900 q-12 -88 -64 -124"/>
+  </g>
+  <g>
+    <rect x="222" y="856" width="15" height="26" rx="6" fill="#e8d9b8"/>
+    <path d="M204 860 q0 -28 26 -28 q26 0 26 28 z" fill="#b5443a"/>
+    <circle cx="219" cy="844" r="3" fill="#f3e6cf"/>
+    <circle cx="238" cy="850" r="2.4" fill="#f3e6cf"/>
+    <rect x="1188" y="868" width="12" height="20" rx="5" fill="#e8d9b8"/>
+    <path d="M1174 870 q0 -22 20 -22 q20 0 20 22 z" fill="#b5443a"/>
+    <circle cx="1190" cy="858" r="2.4" fill="#f3e6cf"/>
+  </g>
+</svg>
+<div class="fireflies" id="fireflies"></div>
+
+<header>
+  <h1>Happy Birthday, CattyWampus! 🎂</h1>
+  <p class="subtitle">Friends from the glade wrote you these notes. Sweep the magnifying glass around to read them, or let it surprise you.</p>
+</header>
+
+<div class="controls">
+  <button id="random-btn">✨ Surprise me</button>
+  <button id="lens-toggle" class="secondary">Magnifying lens: on</button>
+</div>
+
+<div class="board-frame">
+  <div id="collage" class="board" aria-label="Collage of birthday notes for CattyWampus"></div>
+</div>
+
+<!-- ── submission form ── -->
+<section class="submit-section" aria-label="Leave your own birthday message">
+  <h2>🐸 Leave a message</h2>
+  <p>Add your own birthday wish! Upload a photo of a handwritten note, or type a message.</p>
+
+  <div class="tab-row">
+    <button class="tab-btn active" data-tab="photo">📷 Photo</button>
+    <button class="tab-btn" data-tab="text">✏️ Type a message</button>
+  </div>
+
+  <!-- Photo tab -->
+  <div class="tab-panel active" id="tab-photo">
+    <div class="field">
+      <label>Your photo (handwritten note, drawing, anything!)</label>
+      <input type="file" id="photo-file" accept="image/*">
+      <div class="photo-preview"><img id="photo-preview-img" alt="Preview"></div>
+    </div>
+    <div class="field">
+      <label>Your name</label>
+      <input type="text" id="photo-name" placeholder="— signed by...">
+    </div>
+  </div>
+
+  <!-- Text tab -->
+  <div class="tab-panel" id="tab-text">
+    <div class="field">
+      <label>Your message</label>
+      <textarea id="text-msg" placeholder="Write your birthday wish here..."></textarea>
+    </div>
+    <div class="field">
+      <label>Pick a font</label>
+      <div class="font-picker" id="font-picker">
+        <button class="font-opt selected" data-font="Arial" style="font-family:Arial">Arial</button>
+        <button class="font-opt" data-font="Verdana" style="font-family:Verdana">Verdana</button>
+        <button class="font-opt" data-font="Merriweather" style="font-family:Merriweather,serif">Merriweather</button>
+        <button class="font-opt" data-font="'Courier New'" style="font-family:'Courier New',monospace">Courier New</button>
+        <button class="font-opt" data-font="'Architects Daughter'" style="font-family:'Architects Daughter',cursive">Architects Daughter</button>
+      </div>
+      <div class="msg-preview" id="msg-preview" style="font-family:Arial">Your message will look like this...</div>
+    </div>
+    <div class="field">
+      <label>Your name</label>
+      <input type="text" id="text-name" placeholder="— signed by...">
+    </div>
+  </div>
+
+  <button class="submit-btn" id="submit-btn">🎉 Send to the glade</button>
+  <div class="status-msg" id="status-msg"></div>
+</section>
+
+<footer>Made with love · v3 — forest glade 🐸</footer>
+
+<!-- lightbox (injected by JS) -->
+<div id="lightbox" role="dialog" aria-modal="true">
+  <img alt="">
+  <div class="caption"></div>
+  <div class="hint">click anywhere or press Esc to close</div>
+</div>
+
+<script>
+/* ── Supabase client ── */
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+/* ── frog helpers (unchanged from standalone version) ── */
+const BLINK_CYCLE = 6;
+const FROG_HUES   = [110,88,132,75,150,100,165];
+
+function frogSVG(hue, k){
+  const body = `hsl(${hue},48%,42%)`, dark = `hsl(${hue},45%,24%)`;
+  return `<svg class="frog" data-k="${k}" viewBox="0 0 140 84" aria-hidden="true">
+    <g stroke="${dark}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+      <ellipse cx="70" cy="56" rx="40" ry="26" fill="${body}"/>
+      <circle cx="46" cy="24" r="17" fill="${body}"/>
+      <circle cx="94" cy="24" r="17" fill="${body}"/>
+    </g>
+    <circle cx="46" cy="24" r="11" fill="#fff"/>
+    <circle cx="94" cy="24" r="11" fill="#fff"/>
+    <circle cx="48" cy="26" r="5" fill="#1d2b16"/>
+    <circle cx="92" cy="26" r="5" fill="#1d2b16"/>
+    <circle cx="50" cy="23" r="1.8" fill="#fff"/>
+    <circle cx="94" cy="23" r="1.8" fill="#fff"/>
+    <ellipse class="lid" cx="46" cy="24" rx="11.5" ry="11.5" fill="${body}"/>
+    <ellipse class="lid" cx="94" cy="24" rx="11.5" ry="11.5" fill="${body}"/>
+    <circle cx="64" cy="46" r="1.6" fill="${dark}"/>
+    <circle cx="76" cy="46" r="1.6" fill="${dark}"/>
+    <path d="M50 60 Q70 73 90 60" fill="none" stroke="${dark}" stroke-width="3" stroke-linecap="round"/>
+    <g fill="${body}" stroke="${dark}" stroke-width="2.5" stroke-linejoin="round">
+      <path d="M22 84 q-2 -13 9 -13 q11 0 9 13 z"/>
+      <path d="M100 84 q-2 -13 9 -13 q11 0 9 13 z"/>
+      <ellipse cx="17" cy="79" rx="4.5" ry="6.5"/>
+      <ellipse cx="45" cy="79" rx="4.5" ry="6.5"/>
+      <ellipse cx="95" cy="79" rx="4.5" ry="6.5"/>
+      <ellipse cx="123" cy="79" rx="4.5" ry="6.5"/>
+    </g>
+  </svg>`;
+}
+
+function syncFrogBlinks(root){
+  root.querySelectorAll('.frog').forEach(f => {
+    const k = parseFloat(f.dataset.k) || 0;
+    const delay = -(((performance.now()/1000)+k) % BLINK_CYCLE);
+    f.querySelectorAll('.lid').forEach(l => l.style.animationDelay = delay+'s');
+  });
+}
+
+function addFrogs(note, i, wide){
+  (wide ? [16,50,84] : [50]).forEach((pct,j) => {
+    const hue = FROG_HUES[(i+j) % FROG_HUES.length];
+    note.insertAdjacentHTML('beforeend', frogSVG(hue, i*1.7+j*2.3));
+    note.lastElementChild.style.left = pct+'%';
+  });
+}
+
+/* ── render entries from Supabase ── */
+const collage = document.getElementById('collage');
+
+function renderEntry(e, i){
+  const note = document.createElement('div');
+  note.className = 'note'+(e.type==='photo'?' photo':'')+(e.wide?' wide':'');
+  note.dataset.id = e.id;
+  note.style.setProperty('--tilt', e.wide ? '0deg' : ((i*137)%7-3)+'deg');
+
+  if(e.type==='photo'){
+    note.innerHTML = `<img src="${e.photo_url}" alt="Note from ${e.contributor}" loading="lazy">
+                      <div class="from">${e.contributor}</div>`;
+    note.querySelector('img').addEventListener('load', rebuildLensClone);
+  } else {
+    note.innerHTML = `<div class="msg" style="font-family:${e.font||'Arial'},sans-serif">${e.message}</div>
+                      <div class="from">${e.contributor}</div>`;
+  }
+  addFrogs(note, i, !!e.wide);
+  return note;
+}
+
+async function loadEntries(){
+  collage.innerHTML = '<div class="board-loading">🐸 The frogs are gathering your notes...</div>';
+
+  const {data, error} = await sb
+    .from(TABLE_NAME)
+    .select('*')
+    .eq('hidden', false)
+    .order('sort_order', {ascending:true})
+    .order('created_at', {ascending:true});
+
+  if(error){ collage.innerHTML = '<div class="board-loading">Could not load entries — please refresh.</div>'; return; }
+
+  collage.innerHTML = '';
+  (data||[]).forEach((e,i) => collage.appendChild(renderEntry(e,i)));
+  syncFrogBlinks(collage);
+
+  /* set up lens now that notes exist */
+  initLens();
+}
+
+/* ── magnifying lens ── */
+let lensOn = true, lensReady = false;
+let pos={x:0,y:0}, target={x:0,y:0}, following=true;
+const reduceMotion = matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+function initLens(){
+  if(lensReady) return;
+  lensReady = true;
+
+  const lens     = document.createElement('div'); lens.id='lens';
+  const lensInner= document.createElement('div'); lensInner.id='lens-inner';
+  const glass    = document.createElement('div'); glass.className='glass';
+  const handle   = document.createElement('div'); handle.id='handle';
+  lens.appendChild(lensInner); lens.appendChild(glass);
+  collage.appendChild(lens); collage.appendChild(handle);
+
+  function rebuildLensClone(){
+    lensInner.innerHTML = '';
+    const clone = collage.cloneNode(true);
+    clone.querySelector('#lens')?.remove();
+    clone.querySelector('#handle')?.remove();
+    clone.removeAttribute('id'); clone.removeAttribute('aria-label');
+    clone.setAttribute('aria-hidden','true');
+    clone.style.width  = collage.offsetWidth+'px';
+    clone.style.height = collage.offsetHeight+'px';
+    clone.style.cursor = 'default';
+    lensInner.appendChild(clone);
+    syncFrogBlinks(lensInner);
+  }
+  window._rebuildLensClone = rebuildLensClone;
+  rebuildLensClone();
+  window.addEventListener('resize', rebuildLensClone);
+
+  function zoom(){ return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--zoom')); }
+  function renderLens(){
+    const rO=lens.offsetWidth/2, rI=lens.clientWidth/2, z=zoom();
+    lens.style.left  = (pos.x-rO)+'px'; lens.style.top   = (pos.y-rO)+'px';
+    lensInner.style.transform = `translate(${rI-pos.x*z}px,${rI-pos.y*z}px) scale(${z})`;
+    handle.style.left=(pos.x+rO*.62)+'px'; handle.style.top=(pos.y+rO*.62)+'px';
+    handle.style.transform='rotate(-45deg)';
+  }
+  function showLens(v){ lens.classList.toggle('visible',v); handle.classList.toggle('visible',v); }
+
+  collage.addEventListener('pointermove', ev => {
+    if(!lensOn) return;
+    const r=collage.getBoundingClientRect();
+    target.x=ev.clientX-r.left; target.y=ev.clientY-r.top;
+    following=true; showLens(true);
+  });
+  collage.addEventListener('pointerleave',()=>{ if(following) showLens(false); });
+  collage.addEventListener('pointerdown', ev => {
+    const r=collage.getBoundingClientRect();
+    target.x=ev.clientX-r.left; target.y=ev.clientY-r.top;
+    following=true; if(lensOn) showLens(true);
+  });
+
+  (function tick(){
+    const ease = following?(reduceMotion?1:.35):(reduceMotion?1:.07);
+    pos.x+=(target.x-pos.x)*ease; pos.y+=(target.y-pos.y)*ease;
+    renderLens(); requestAnimationFrame(tick);
+  })();
+
+  /* surprise me */
+  let lastPick=-1;
+  document.getElementById('random-btn').addEventListener('click',()=>{
+    const notes=[...collage.querySelectorAll('.note')]; if(!notes.length) return;
+    let i; do{ i=Math.floor(Math.random()*notes.length); }while(notes.length>1&&i===lastPick);
+    lastPick=i;
+    notes.forEach(n=>n.classList.remove('spotlit'));
+    const n=notes[i]; n.classList.add('spotlit'); rebuildLensClone();
+    target.x=n.offsetLeft+n.offsetWidth/2; target.y=n.offsetTop+n.offsetHeight/2;
+    following=false; if(lensOn) showLens(true);
+    setTimeout(()=>{ n.classList.remove('spotlit'); rebuildLensClone(); }, 4000);
+  });
+
+  /* lens toggle */
+  document.getElementById('lens-toggle').addEventListener('click',function(){
+    lensOn=!lensOn;
+    this.textContent='Magnifying lens: '+(lensOn?'on':'off');
+    collage.classList.toggle('lens-off',!lensOn);
+    collage.style.cursor=lensOn?'none':'';
+    if(!lensOn) showLens(false);
+  });
+
+  /* lightbox */
+  const lb=document.getElementById('lightbox');
+  lb.addEventListener('click',()=>lb.classList.remove('open'));
+  document.addEventListener('keydown',ev=>{ if(ev.key==='Escape') lb.classList.remove('open'); });
+  collage.addEventListener('click',ev=>{
+    if(lensOn) return;
+    const note=ev.target.closest('.note.photo'); if(!note) return;
+    const img=note.querySelector('img'), from=note.querySelector('.from')?.textContent||'';
+    lb.querySelector('img').src=img.src; lb.querySelector('img').alt=img.alt;
+    lb.querySelector('.caption').textContent=from;
+    lb.classList.add('open');
+  });
+}
+
+function rebuildLensClone(){ if(window._rebuildLensClone) window._rebuildLensClone(); }
+
+/* ── fireflies ── */
+const ff=document.getElementById('fireflies');
+for(let i=0;i<26;i++){
+  const s=document.createElement('span');
+  s.style.left=Math.random()*100+'vw'; s.style.top=Math.random()*100+'vh';
+  s.style.setProperty('--dx',(Math.random()*90-45)+'px');
+  s.style.setProperty('--dy',(Math.random()*70-50)+'px');
+  s.style.setProperty('--dur',(9+Math.random()*9)+'s');
+  s.style.setProperty('--delay',(-Math.random()*12)+'s');
+  ff.appendChild(s);
+}
+
+/* ── submission form ── */
+/* tab switching */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* font picker */
+let chosenFont = 'Arial';
+document.querySelectorAll('.font-opt').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.font-opt').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected');
+    chosenFont = btn.dataset.font;
+    const preview=document.getElementById('msg-preview');
+    preview.style.fontFamily=chosenFont+',sans-serif';
+  });
+});
+document.getElementById('text-msg').addEventListener('input',function(){
+  const preview=document.getElementById('msg-preview');
+  preview.textContent=this.value||'Your message will look like this...';
+});
+
+/* photo preview */
+document.getElementById('photo-file').addEventListener('change',function(){
+  const img=document.getElementById('photo-preview-img');
+  if(this.files[0]){ img.src=URL.createObjectURL(this.files[0]); img.style.display='block'; }
+  else { img.style.display='none'; }
+});
+
+/* submit */
+document.getElementById('submit-btn').addEventListener('click', async ()=>{
+  const status   = document.getElementById('status-msg');
+  const activeTab= document.querySelector('.tab-btn.active').dataset.tab;
+  const btn      = document.getElementById('submit-btn');
+
+  status.className='status-msg'; status.textContent='';
+
+  if(activeTab==='photo'){
+    const file = document.getElementById('photo-file').files[0];
+    const name = document.getElementById('photo-name').value.trim();
+    if(!file){ status.className='status-msg err'; status.textContent='Please choose a photo.'; return; }
+    if(!name){ status.className='status-msg err'; status.textContent='Please add your name.'; return; }
+
+    btn.disabled=true; btn.textContent='Uploading...';
+    const ext  = file.name.split('.').pop();
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const {error:upErr} = await sb.storage.from(BUCKET_NAME).upload(path, file, {upsert:false});
+    if(upErr){ status.className='status-msg err'; status.textContent='Upload failed: '+upErr.message; btn.disabled=false; btn.textContent='🎉 Send to the glade'; return; }
+
+    const {data:{publicUrl}} = sb.storage.from(BUCKET_NAME).getPublicUrl(path);
+    const {error:insErr} = await sb.from(TABLE_NAME).insert({
+      type:'photo', photo_url:publicUrl, contributor:name,
+      sort_order: Date.now()
+    });
+    if(insErr){ status.className='status-msg err'; status.textContent='Could not save: '+insErr.message; btn.disabled=false; btn.textContent='🎉 Send to the glade'; return; }
+
+    status.className='status-msg ok'; status.textContent='🎉 Your photo is on the board!';
+    document.getElementById('photo-file').value='';
+    document.getElementById('photo-preview-img').style.display='none';
+    document.getElementById('photo-name').value='';
+
+  } else {
+    const msg  = document.getElementById('text-msg').value.trim();
+    const name = document.getElementById('text-name').value.trim();
+    if(!msg){ status.className='status-msg err'; status.textContent='Please write a message.'; return; }
+    if(!name){ status.className='status-msg err'; status.textContent='Please add your name.'; return; }
+
+    btn.disabled=true; btn.textContent='Sending...';
+    const {error} = await sb.from(TABLE_NAME).insert({
+      type:'text', message:msg, font:chosenFont, contributor:name,
+      sort_order: Date.now()
+    });
+    if(error){ status.className='status-msg err'; status.textContent='Could not save: '+error.message; btn.disabled=false; btn.textContent='🎉 Send to the glade'; return; }
+
+    status.className='status-msg ok'; status.textContent='🎉 Your message is on the board!';
+    document.getElementById('text-msg').value='';
+    document.getElementById('text-name').value='';
+    document.getElementById('msg-preview').textContent='Your message will look like this...';
+  }
+
+  btn.disabled=false; btn.textContent='🎉 Send to the glade';
+  await loadEntries(); /* refresh the board */
+});
+
+/* ── boot ── */
+loadEntries();
+</script>
+</body>
+</html>
