@@ -99,16 +99,11 @@
   .note .from{ font-family:'Shadows Into Light',cursive; font-size:1.05rem; text-align:right; margin-top:10px; opacity:.8; }
   .note.spotlit{ box-shadow:0 0 0 4px #ffd97a, 0 0 34px 10px rgba(255,217,122,.55); z-index:3; }
 
-  /* ── frogs ── */
+  /* ── frogs (Twemoji 🐸, CC-BY 4.0) ── */
   .frog{
-    position:absolute; top:-48px; left:50%; width:96px; transform:translateX(-50%);
+    position:absolute; top:-40px; left:50%; width:64px; transform:translateX(-50%);
     z-index:1; pointer-events:none; filter:drop-shadow(0 3px 3px rgba(0,0,0,.3));
   }
-  .frog .lid{
-    transform:scaleY(0); transform-origin:center top; transform-box:fill-box;
-    animation:blink 6s infinite;
-  }
-  @keyframes blink{ 0%,91%,100%{transform:scaleY(0)} 94%,96%{transform:scaleY(1)} }
 
   /* ── lens ── */
   #lens{
@@ -221,12 +216,12 @@
 
   @media(prefers-reduced-motion:reduce){
     *{ transition:none !important; }
-    .frog .lid,.fireflies span{ animation:none !important; }
+    .fireflies span{ animation:none !important; }
   }
   @media(max-width:520px){
     :root{ --lens-size:160px; --zoom:1.9; }
     .board{ grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:46px 14px; padding:52px 16px 26px; }
-    .frog{ width:76px; top:-38px; }
+    .frog{ width:50px; top:-32px; }
   }
 </style>
 </head>
@@ -344,7 +339,8 @@
   <div class="status-msg" id="status-msg"></div>
 </section>
 
-<footer>Made with love · v3 — forest glade 🐸</footer>
+<footer>Made with love · v3 — forest glade 🐸<br>
+<span style="font-size:.78rem">Frog artwork by <a href="https://github.com/jdecked/twemoji" style="color:inherit">Twemoji</a>, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" style="color:inherit">CC-BY 4.0</a></span></footer>
 
 <!-- lightbox (injected by JS) -->
 <div id="lightbox" role="dialog" aria-modal="true">
@@ -357,52 +353,14 @@
 /* ── Supabase client ── */
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
-/* ── frog helpers (unchanged from standalone version) ── */
-const BLINK_CYCLE = 6;
-const FROG_HUES   = [110,88,132,75,150,100,165];
-
-function frogSVG(hue, k){
-  const body = `hsl(${hue},48%,42%)`, dark = `hsl(${hue},45%,24%)`;
-  return `<svg class="frog" data-k="${k}" viewBox="0 0 140 84" aria-hidden="true">
-    <g stroke="${dark}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
-      <ellipse cx="70" cy="56" rx="40" ry="26" fill="${body}"/>
-      <circle cx="46" cy="24" r="17" fill="${body}"/>
-      <circle cx="94" cy="24" r="17" fill="${body}"/>
-    </g>
-    <circle cx="46" cy="24" r="11" fill="#fff"/>
-    <circle cx="94" cy="24" r="11" fill="#fff"/>
-    <circle cx="48" cy="26" r="5" fill="#1d2b16"/>
-    <circle cx="92" cy="26" r="5" fill="#1d2b16"/>
-    <circle cx="50" cy="23" r="1.8" fill="#fff"/>
-    <circle cx="94" cy="23" r="1.8" fill="#fff"/>
-    <ellipse class="lid" cx="46" cy="24" rx="11.5" ry="11.5" fill="${body}"/>
-    <ellipse class="lid" cx="94" cy="24" rx="11.5" ry="11.5" fill="${body}"/>
-    <circle cx="64" cy="46" r="1.6" fill="${dark}"/>
-    <circle cx="76" cy="46" r="1.6" fill="${dark}"/>
-    <path d="M50 60 Q70 73 90 60" fill="none" stroke="${dark}" stroke-width="3" stroke-linecap="round"/>
-    <g fill="${body}" stroke="${dark}" stroke-width="2.5" stroke-linejoin="round">
-      <path d="M22 84 q-2 -13 9 -13 q11 0 9 13 z"/>
-      <path d="M100 84 q-2 -13 9 -13 q11 0 9 13 z"/>
-      <ellipse cx="17" cy="79" rx="4.5" ry="6.5"/>
-      <ellipse cx="45" cy="79" rx="4.5" ry="6.5"/>
-      <ellipse cx="95" cy="79" rx="4.5" ry="6.5"/>
-      <ellipse cx="123" cy="79" rx="4.5" ry="6.5"/>
-    </g>
-  </svg>`;
+/* ── frog helper: Twemoji frog 🐸 (unmodified, CC-BY 4.0) ── */
+function frogSVG(){
+  return `<svg class="frog" viewBox="0 0 36 36" aria-hidden="true"><path fill="#C6E5B3" d="M36 22c0 7.456-8.059 12-18 12S0 29.456 0 22 8.059 7 18 7s18 7.544 18 15z"/><path fill="#77B255" d="M31.755 12.676C33.123 11.576 34 9.891 34 8c0-3.313-2.687-6-6-6-2.861 0-5.25 2.004-5.851 4.685-1.288-.483-2.683-.758-4.149-.758-1.465 0-2.861.275-4.149.758C13.25 4.004 10.861 2 8 2 4.687 2 2 4.687 2 8c0 1.891.877 3.576 2.245 4.676C1.6 15.356 0 18.685 0 22c0 7.456 8.059 1 18 1s18 6.456 18-1c0-3.315-1.6-6.644-4.245-9.324z"/><circle fill="#FFF" cx="7.5" cy="7.5" r="3.5"/><circle fill="#292F33" cx="7.5" cy="7.5" r="1.5"/><circle fill="#FFF" cx="28.5" cy="7.5" r="3.5"/><circle fill="#292F33" cx="28.5" cy="7.5" r="1.5"/><circle fill="#5C913B" cx="14" cy="20" r="1"/><circle fill="#5C913B" cx="22" cy="20" r="1"/></svg>`;
 }
 
-function syncFrogBlinks(root){
-  root.querySelectorAll('.frog').forEach(f => {
-    const k = parseFloat(f.dataset.k) || 0;
-    const delay = -(((performance.now()/1000)+k) % BLINK_CYCLE);
-    f.querySelectorAll('.lid').forEach(l => l.style.animationDelay = delay+'s');
-  });
-}
-
-function addFrogs(note, i, wide){
-  (wide ? [16,50,84] : [50]).forEach((pct,j) => {
-    const hue = FROG_HUES[(i+j) % FROG_HUES.length];
-    note.insertAdjacentHTML('beforeend', frogSVG(hue, i*1.7+j*2.3));
+function addFrogs(note, wide){
+  (wide ? [16,50,84] : [50]).forEach(pct => {
+    note.insertAdjacentHTML('beforeend', frogSVG());
     note.lastElementChild.style.left = pct+'%';
   });
 }
@@ -424,7 +382,7 @@ function renderEntry(e, i){
     note.innerHTML = `<div class="msg" style="font-family:${e.font||'Arial'},sans-serif">${e.message}</div>
                       <div class="from">${e.contributor}</div>`;
   }
-  addFrogs(note, i, !!e.wide);
+  addFrogs(note, !!e.wide);
   return note;
 }
 
@@ -442,7 +400,6 @@ async function loadEntries(){
 
   collage.innerHTML = '';
   (data||[]).forEach((e,i) => collage.appendChild(renderEntry(e,i)));
-  syncFrogBlinks(collage);
 
   /* set up lens now that notes exist */
   initLens();
@@ -475,7 +432,6 @@ function initLens(){
     clone.style.height = collage.offsetHeight+'px';
     clone.style.cursor = 'default';
     lensInner.appendChild(clone);
-    syncFrogBlinks(lensInner);
   }
   window._rebuildLensClone = rebuildLensClone;
   rebuildLensClone();
