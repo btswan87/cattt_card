@@ -95,6 +95,30 @@
   .note.photo img{ width:100%; height:auto; display:block; }
   .note.photo .from{ position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:.95rem; color:#555; }
   .note.wide{ grid-column:1/-1; }
+
+  /* ── photo stacks (multi-image submissions) ── */
+  .note.photo.stacked{
+    box-shadow:0 6px 14px rgba(0,0,0,.45),
+               5px 5px 0 -1px rgba(255,253,245,.92),
+               9px 9px 0 -2px rgba(255,253,245,.72);
+  }
+  .note.photo.stacked img{ position:relative; z-index:1; }
+  .stack-arrow{
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:26px; height:40px; z-index:2; pointer-events:none;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:1.7rem; line-height:1;
+    background:rgba(0,0,0,.4); border-radius:6px;
+    text-shadow:0 1px 2px rgba(0,0,0,.6);
+  }
+  .stack-arrow.prev{ left:10px; }
+  .stack-arrow.next{ right:10px; }
+  .stack-count{
+    position:absolute; top:12px; right:12px; z-index:2; pointer-events:none;
+    background:rgba(0,0,0,.55); color:#fff;
+    font-size:.78rem; font-weight:800; padding:2px 9px; border-radius:11px;
+  }
+  #collage .note.photo.stacked{ cursor:pointer; }
   .note .msg{ font-size:1.2rem; line-height:1.3; font-weight:400; }
   .note .from{ font-family:'Shadows Into Light',cursive; font-size:1.05rem; text-align:right; margin-top:10px; opacity:.8; }
   .note.spotlit{ box-shadow:0 0 0 4px #ffd97a, 0 0 34px 10px rgba(255,217,122,.55); z-index:3; }
@@ -414,9 +438,33 @@ function renderEntry(e, i){
   note.style.setProperty('--tilt', e.wide ? '0deg' : ((i*137)%7-3)+'deg');
 
   if(e.type==='photo'){
-    note.innerHTML = `<img src="${e.photo_url}" alt="Note from ${e.contributor}" loading="lazy">
+    /* an entry may hold one photo (photo_url) or several (photo_urls) */
+    const urls = (Array.isArray(e.photo_urls) && e.photo_urls.length)
+      ? e.photo_urls
+      : (e.photo_url ? [e.photo_url] : []);
+    const multi = urls.length > 1;
+    if(multi) note.classList.add('stacked');
+
+    note.innerHTML = `<img src="${urls[0]||''}" alt="Note from ${e.contributor}" loading="lazy">
                       <div class="from">${e.contributor}</div>`;
-    note.querySelector('img').addEventListener('load', rebuildLensClone);
+    const img = note.querySelector('img');
+    img.addEventListener('load', rebuildLensClone);
+
+    if(multi){
+      note.insertAdjacentHTML('beforeend',
+        `<div class="stack-arrow prev" aria-hidden="true">‹</div>
+         <div class="stack-arrow next" aria-hidden="true">›</div>
+         <div class="stack-count"><span class="cur">1</span> / ${urls.length}</div>`);
+      const counter = note.querySelector('.stack-count .cur');
+      let idx = 0;
+      note._stack = {
+        go(dir){
+          idx = (idx + dir + urls.length) % urls.length;
+          img.src = urls[idx];                 // 'load' handler refreshes the lens copy
+          counter.textContent = idx + 1;
+        }
+      };
+    }
   } else {
     note.innerHTML = `<div class="msg" style="font-family:${e.font||'Arial'},sans-serif">${e.message}</div>
                       <div class="from">${e.contributor}</div>`;
@@ -532,8 +580,15 @@ function initLens(){
   lb.addEventListener('click',()=>lb.classList.remove('open'));
   document.addEventListener('keydown',ev=>{ if(ev.key==='Escape') lb.classList.remove('open'); });
   collage.addEventListener('click',ev=>{
-    if(lensOn) return;
     const note=ev.target.closest('.note.photo'); if(!note) return;
+    /* multi-photo stack: click right half = next, left half = back */
+    if(note._stack){
+      const r=note.getBoundingClientRect();
+      note._stack.go((ev.clientX-r.left) > r.width/2 ? 1 : -1);
+      return;
+    }
+    /* single photo: lightbox only when the lens is off */
+    if(lensOn) return;
     const img=note.querySelector('img'), from=note.querySelector('.from')?.textContent||'';
     lb.querySelector('img').src=img.src; lb.querySelector('img').alt=img.alt;
     lb.querySelector('.caption').textContent=from;
@@ -674,7 +729,7 @@ document.getElementById('submit-btn').addEventListener('click', async ()=>{
 
     btn.disabled=true;
     const base = Date.now();
-    let uploaded = 0;
+    const urls = [];
 
     for(let i=0; i<photoItems.length; i++){
       btn.textContent = `Uploading ${i+1}/${photoItems.length}...`;
@@ -691,16 +746,22 @@ document.getElementById('submit-btn').addEventListener('click', async ()=>{
       if(upErr){ status.className='status-msg err'; status.textContent='Upload failed on image '+(i+1)+': '+upErr.message; btn.disabled=false; btn.textContent='🎉 Send to the glade'; return; }
 
       const {data:{publicUrl}} = sb.storage.from(BUCKET_NAME).getPublicUrl(path);
-      const {error:insErr} = await sb.from(TABLE_NAME).insert({
-        type:'photo', photo_url:publicUrl, contributor:name,
-        sort_order: base + i      // consecutive, so they stay in your chosen order
-      });
-      if(insErr){ status.className='status-msg err'; status.textContent='Could not save image '+(i+1)+': '+insErr.message; btn.disabled=false; btn.textContent='🎉 Send to the glade'; return; }
-      uploaded++;
+      urls.push(publicUrl);
     }
 
+    /* one grouped entry holding the whole stack, in chosen order */
+    btn.textContent = 'Saving...';
+    const {error:insErr} = await sb.from(TABLE_NAME).insert({
+      type:'photo',
+      photo_url: urls[0],     // first image — used for admin thumbnail + fallback
+      photo_urls: urls,       // full stack
+      contributor:name,
+      sort_order: base
+    });
+    if(insErr){ status.className='status-msg err'; status.textContent='Could not save: '+insErr.message; btn.disabled=false; btn.textContent='🎉 Send to the glade'; return; }
+
     status.className='status-msg ok';
-    status.textContent = uploaded===1 ? '🎉 Your photo is on the board!' : `🎉 All ${uploaded} photos are on the board!`;
+    status.textContent = urls.length===1 ? '🎉 Your photo is on the board!' : `🎉 Your ${urls.length}-photo stack is on the board!`;
     photoItems.forEach(it => URL.revokeObjectURL(it.url));
     photoItems = [];
     renderPhotoGrid();
