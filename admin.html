@@ -237,14 +237,16 @@ function renderEntries(){
     /* thumb */
     let thumbHTML;
     if(e.type==='photo' && e.photo_url){
-      thumbHTML=`<div class="entry-thumb"><img src="${e.photo_url}" alt="" loading="lazy"></div>`;
+      const count = (Array.isArray(e.photo_urls) && e.photo_urls.length) ? e.photo_urls.length : 1;
+      const badge = count>1 ? `<span style="position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.7);color:#fff;font-size:.7rem;font-weight:800;padding:1px 6px;border-radius:9px">📷 ${count}</span>` : '';
+      thumbHTML=`<div class="entry-thumb" style="position:relative"><img src="${e.photo_url}" alt="" loading="lazy">${badge}</div>`;
     } else {
       thumbHTML=`<div class="entry-thumb">✏️</div>`;
     }
 
     const preview = e.type==='text'
       ? (e.message||'').slice(0,120)+(e.message?.length>120?'…':'')
-      : '📷 Photo';
+      : ((Array.isArray(e.photo_urls)&&e.photo_urls.length>1) ? `📷 Photo stack (${e.photo_urls.length})` : '📷 Photo');
 
     const dateStr = new Date(e.created_at).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
 
@@ -317,12 +319,15 @@ async function toggleHidden(e){
 async function deleteEntry(e){
   if(!confirm(`Delete entry from "${e.contributor}"? This cannot be undone.`)) return;
 
-  /* remove photo from storage if applicable */
-  if(e.type==='photo' && e.photo_url){
-    const parts = e.photo_url.split('/'+BUCKET_NAME+'/');
-    if(parts[1]){
-      await sb.storage.from(BUCKET_NAME).remove([parts[1]]);
-    }
+  /* gather every photo this entry owns (stack or single) and remove from storage */
+  if(e.type==='photo'){
+    const urls = (Array.isArray(e.photo_urls) && e.photo_urls.length)
+      ? e.photo_urls
+      : (e.photo_url ? [e.photo_url] : []);
+    const paths = urls
+      .map(u => { const p = u.split('/'+BUCKET_NAME+'/'); return p[1]; })
+      .filter(Boolean);
+    if(paths.length) await sb.storage.from(BUCKET_NAME).remove(paths);
   }
 
   const {error} = await sb.from(TABLE_NAME).delete().eq('id',e.id);
