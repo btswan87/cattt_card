@@ -201,8 +201,45 @@
     border:1px solid rgba(0,0,0,.1);
   }
 
-  .photo-preview{ margin-top:10px; }
-  .photo-preview img{ max-width:100%; max-height:220px; border-radius:6px; display:none; }
+  .photo-grid{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+  .photo-item{
+    position:relative; width:108px; height:108px; border-radius:8px; overflow:hidden;
+    background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.15);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .photo-item img{
+    max-width:100%; max-height:100%; display:block;
+    transition:transform .2s ease;
+  }
+  .photo-item .pi-controls{
+    position:absolute; inset:auto 0 0 0; display:flex; justify-content:center; gap:3px;
+    padding:4px; background:linear-gradient(transparent, rgba(0,0,0,.65));
+  }
+  .pi-btn{
+    width:24px; height:24px; border-radius:5px; border:none; cursor:pointer;
+    background:rgba(255,255,255,.85); color:#1a1a1a;
+    font-size:.8rem; line-height:1; display:flex; align-items:center; justify-content:center;
+    padding:0; transition:background .12s;
+  }
+  .pi-btn:hover{ background:#fff; }
+  .pi-btn:disabled{ opacity:.3; cursor:default; }
+  .photo-item .pi-remove{
+    position:absolute; top:4px; right:4px; width:22px; height:22px; border-radius:50%;
+    border:none; cursor:pointer; background:rgba(0,0,0,.6); color:#fff;
+    font-size:.85rem; line-height:1; display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .photo-item .pi-remove:hover{ background:rgba(220,70,70,.9); }
+  .photo-item .pi-num{
+    position:absolute; top:4px; left:4px; min-width:20px; height:20px; border-radius:10px;
+    background:rgba(255,217,122,.92); color:#4a3000; font-weight:800; font-size:.72rem;
+    display:flex; align-items:center; justify-content:center; padding:0 5px;
+  }
+  .photo-hint{ font-size:.8rem; opacity:.6; margin-top:8px; }
+  .add-more-label{
+    display:inline-flex; align-items:center; gap:6px; margin-top:10px; cursor:pointer;
+    font-size:.88rem; color:#ffd97a; font-weight:700;
+  }
+  .add-more-label.disabled{ opacity:.4; cursor:default; }
 
   .submit-btn{
     width:100%; margin-top:8px; padding:14px;
@@ -277,7 +314,7 @@
 
 <header>
   <h1>Happy Birthday, CattyWampus! 🎂</h1>
-  <p class="subtitle">Friends from the Freaky Forest wrote you these notes. Sweep the magnifying glass around to read them, or let it surprise you.</p>
+  <p class="subtitle">Friends from the glade wrote you these notes. Sweep the magnifying glass around to read them, or let it surprise you.</p>
 </header>
 
 <div class="controls">
@@ -302,9 +339,11 @@
   <!-- Photo tab -->
   <div class="tab-panel active" id="tab-photo">
     <div class="field">
-      <label>Your photo (handwritten note, drawing, anything!)</label>
-      <input type="file" id="photo-file" accept="image/*">
-      <div class="photo-preview"><img id="photo-preview-img" alt="Preview"></div>
+      <label>Your photos — up to 5 (handwritten notes, drawings, anything!)</label>
+      <input type="file" id="photo-file" accept="image/*" multiple hidden>
+      <label for="photo-file" class="add-more-label" id="add-more">📷 Choose photos</label>
+      <div class="photo-grid" id="photo-grid"></div>
+      <div class="photo-hint">Tip: use ↻ to fix sideways photos, and ◀ ▶ to set the order they'll appear.</div>
     </div>
     <div class="field">
       <label>Your name</label>
@@ -335,11 +374,11 @@
     </div>
   </div>
 
-  <button class="submit-btn" id="submit-btn">🎉 Send to the Feaky Forest</button>
+  <button class="submit-btn" id="submit-btn">🎉 Send to the glade</button>
   <div class="status-msg" id="status-msg"></div>
 </section>
 
-<footer>Made with love · v3 — Freaky Forest 🐸<br>
+<footer>Made with love · v3 — forest glade 🐸<br>
 <span style="font-size:.78rem">Frog artwork by <a href="https://github.com/jdecked/twemoji" style="color:inherit">Twemoji</a>, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" style="color:inherit">CC-BY 4.0</a></span></footer>
 
 <!-- lightbox (injected by JS) -->
@@ -543,12 +582,82 @@ document.getElementById('text-msg').addEventListener('input',function(){
   preview.textContent=this.value||'Your message will look like this...';
 });
 
-/* photo preview */
-document.getElementById('photo-file').addEventListener('change',function(){
-  const img=document.getElementById('photo-preview-img');
-  if(this.files[0]){ img.src=URL.createObjectURL(this.files[0]); img.style.display='block'; }
-  else { img.style.display='none'; }
+/* photo picker: up to 5 images, each reorderable + rotatable */
+const MAX_PHOTOS = 5;
+let photoItems = [];   // [{ file, url, rotation }]
+
+const photoFileInput = document.getElementById('photo-file');
+const photoGrid = document.getElementById('photo-grid');
+const addMoreLabel = document.getElementById('add-more');
+
+photoFileInput.addEventListener('change', function(){
+  for(const file of this.files){
+    if(photoItems.length >= MAX_PHOTOS) break;
+    if(!file.type.startsWith('image/')) continue;
+    photoItems.push({ file, url: URL.createObjectURL(file), rotation: 0 });
+  }
+  this.value = '';          // allow re-picking the same file later
+  renderPhotoGrid();
 });
+
+function renderPhotoGrid(){
+  photoGrid.innerHTML = '';
+  photoItems.forEach((it, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'photo-item';
+    cell.innerHTML = `
+      <span class="pi-num">${i+1}</span>
+      <button class="pi-remove" title="Remove" data-act="remove">✕</button>
+      <img src="${it.url}" alt="" style="transform:rotate(${it.rotation}deg)">
+      <div class="pi-controls">
+        <button class="pi-btn" data-act="left"  title="Move left"  ${i===0?'disabled':''}>◀</button>
+        <button class="pi-btn" data-act="rotate" title="Rotate">↻</button>
+        <button class="pi-btn" data-act="right" title="Move right" ${i===photoItems.length-1?'disabled':''}>▶</button>
+      </div>`;
+    cell.querySelectorAll('[data-act]').forEach(b => {
+      b.addEventListener('click', () => photoAction(b.dataset.act, i));
+    });
+    photoGrid.appendChild(cell);
+  });
+  // toggle the "choose photos" label when full
+  const full = photoItems.length >= MAX_PHOTOS;
+  addMoreLabel.classList.toggle('disabled', full);
+  addMoreLabel.textContent = full
+    ? `📷 Maximum ${MAX_PHOTOS} photos`
+    : (photoItems.length ? '📷 Add more' : '📷 Choose photos');
+  photoFileInput.disabled = full;
+}
+
+function photoAction(act, i){
+  if(act === 'remove'){
+    URL.revokeObjectURL(photoItems[i].url);
+    photoItems.splice(i, 1);
+  } else if(act === 'rotate'){
+    photoItems[i].rotation = (photoItems[i].rotation + 90) % 360;
+  } else if(act === 'left' && i > 0){
+    [photoItems[i-1], photoItems[i]] = [photoItems[i], photoItems[i-1]];
+  } else if(act === 'right' && i < photoItems.length - 1){
+    [photoItems[i+1], photoItems[i]] = [photoItems[i], photoItems[i+1]];
+  }
+  renderPhotoGrid();
+}
+
+/* bake rotation (and a sane size cap) into a JPEG blob for upload */
+async function processImage(file, rotation, maxDim = 2000){
+  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
+  const dw = Math.round(bmp.width * scale), dh = Math.round(bmp.height * scale);
+  const rot = ((rotation % 360) + 360) % 360;
+  const canvas = document.createElement('canvas');
+  if(rot === 90 || rot === 270){ canvas.width = dh; canvas.height = dw; }
+  else { canvas.width = dw; canvas.height = dh; }
+  const ctx = canvas.getContext('2d');
+  ctx.translate(canvas.width/2, canvas.height/2);
+  ctx.rotate(rot * Math.PI / 180);
+  ctx.drawImage(bmp, -dw/2, -dh/2, dw, dh);
+  bmp.close?.();
+  return new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
+}
 
 /* submit */
 document.getElementById('submit-btn').addEventListener('click', async ()=>{
@@ -559,27 +668,42 @@ document.getElementById('submit-btn').addEventListener('click', async ()=>{
   status.className='status-msg'; status.textContent='';
 
   if(activeTab==='photo'){
-    const file = document.getElementById('photo-file').files[0];
     const name = document.getElementById('photo-name').value.trim();
-    if(!file){ status.className='status-msg err'; status.textContent='Please choose a photo.'; return; }
+    if(!photoItems.length){ status.className='status-msg err'; status.textContent='Please add at least one photo.'; return; }
     if(!name){ status.className='status-msg err'; status.textContent='Please add your name.'; return; }
 
-    btn.disabled=true; btn.textContent='Uploading...';
-    const ext  = file.name.split('.').pop();
-    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const {error:upErr} = await sb.storage.from(BUCKET_NAME).upload(path, file, {upsert:false});
-    if(upErr){ status.className='status-msg err'; status.textContent='Upload failed: '+upErr.message; btn.disabled=false; btn.textContent='🎉 Send to the glade'; return; }
+    btn.disabled=true;
+    const base = Date.now();
+    let uploaded = 0;
 
-    const {data:{publicUrl}} = sb.storage.from(BUCKET_NAME).getPublicUrl(path);
-    const {error:insErr} = await sb.from(TABLE_NAME).insert({
-      type:'photo', photo_url:publicUrl, contributor:name,
-      sort_order: Date.now()
-    });
-    if(insErr){ status.className='status-msg err'; status.textContent='Could not save: '+insErr.message; btn.disabled=false; btn.textContent='🎉 Send to the glade'; return; }
+    for(let i=0; i<photoItems.length; i++){
+      btn.textContent = `Uploading ${i+1}/${photoItems.length}...`;
+      let blob;
+      try {
+        blob = await processImage(photoItems[i].file, photoItems[i].rotation);
+      } catch(e){
+        status.className='status-msg err'; status.textContent='Could not process image '+(i+1)+'.';
+        btn.disabled=false; btn.textContent='🎉 Send to the glade'; return;
+      }
 
-    status.className='status-msg ok'; status.textContent='🎉 Your photo is on the board!';
-    document.getElementById('photo-file').value='';
-    document.getElementById('photo-preview-img').style.display='none';
+      const path = `${base}-${i}-${Math.random().toString(36).slice(2)}.jpg`;
+      const {error:upErr} = await sb.storage.from(BUCKET_NAME).upload(path, blob, {upsert:false, contentType:'image/jpeg'});
+      if(upErr){ status.className='status-msg err'; status.textContent='Upload failed on image '+(i+1)+': '+upErr.message; btn.disabled=false; btn.textContent='🎉 Send to the glade'; return; }
+
+      const {data:{publicUrl}} = sb.storage.from(BUCKET_NAME).getPublicUrl(path);
+      const {error:insErr} = await sb.from(TABLE_NAME).insert({
+        type:'photo', photo_url:publicUrl, contributor:name,
+        sort_order: base + i      // consecutive, so they stay in your chosen order
+      });
+      if(insErr){ status.className='status-msg err'; status.textContent='Could not save image '+(i+1)+': '+insErr.message; btn.disabled=false; btn.textContent='🎉 Send to the glade'; return; }
+      uploaded++;
+    }
+
+    status.className='status-msg ok';
+    status.textContent = uploaded===1 ? '🎉 Your photo is on the board!' : `🎉 All ${uploaded} photos are on the board!`;
+    photoItems.forEach(it => URL.revokeObjectURL(it.url));
+    photoItems = [];
+    renderPhotoGrid();
     document.getElementById('photo-name').value='';
 
   } else {
