@@ -78,6 +78,7 @@
     border-radius:12px; overflow:hidden;
     display:grid;
     grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+    align-items:start;        /* cards keep natural height — no stretching neighbors */
     gap:58px 24px; padding:64px 30px 36px;
   }
   #collage{ cursor:none; touch-action:none; }
@@ -96,8 +97,8 @@
   .note.photo .from{ position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:.95rem; color:#555; }
   .note.wide{ grid-column:1/-1; }
 
-  /* ── photo stacks (multi-image submissions) ── */
-  .note.photo.stacked{
+  /* ── stacks (multi-image OR multi-page text) ── */
+  .note.stacked{
     box-shadow:0 6px 14px rgba(0,0,0,.45),
                5px 5px 0 -1px rgba(255,253,245,.92),
                9px 9px 0 -2px rgba(255,253,245,.72);
@@ -111,15 +112,20 @@
     background:rgba(0,0,0,.4); border-radius:6px;
     text-shadow:0 1px 2px rgba(0,0,0,.6);
   }
+  .note.text-stack .stack-arrow{ width:18px; height:34px; font-size:1.3rem; background:rgba(0,0,0,.18); color:#444; text-shadow:none; }
   .stack-arrow.prev{ left:10px; }
   .stack-arrow.next{ right:10px; }
+  .note.text-stack .stack-arrow.prev{ left:5px; }
+  .note.text-stack .stack-arrow.next{ right:5px; }
+  .note.text-stack .msg{ padding:0 20px; }   /* keep words clear of the arrows */
   .stack-count{
     position:absolute; top:12px; right:12px; z-index:2; pointer-events:none;
     background:rgba(0,0,0,.55); color:#fff;
     font-size:.78rem; font-weight:800; padding:2px 9px; border-radius:11px;
   }
-  #collage .note.photo.stacked{ cursor:pointer; }
-  .note .msg{ font-size:1.2rem; line-height:1.3; font-weight:400; }
+  .note.text-stack .stack-count{ top:8px; right:8px; }
+  #collage .note.stacked{ cursor:pointer; }
+  .note .msg{ font-size:1.2rem; line-height:1.3; font-weight:400; white-space:pre-wrap; word-break:break-word; }
   .note .from{ font-family:'Shadows Into Light',cursive; font-size:1.05rem; text-align:right; margin-top:10px; opacity:.8; }
   .note.spotlit{ box-shadow:0 0 0 4px #ffd97a, 0 0 34px 10px rgba(255,217,122,.55); z-index:3; }
 
@@ -431,6 +437,15 @@ function addFrogs(note, wide){
 /* ── render entries from Supabase ── */
 const collage = document.getElementById('collage');
 
+/* shared: arrows + counter overlay for any stack */
+function addStackControls(note, count){
+  note.insertAdjacentHTML('beforeend',
+    `<div class="stack-arrow prev" aria-hidden="true">‹</div>
+     <div class="stack-arrow next" aria-hidden="true">›</div>
+     <div class="stack-count"><span class="cur">1</span> / ${count}</div>`);
+  return note.querySelector('.stack-count .cur');
+}
+
 function renderEntry(e, i){
   const note = document.createElement('div');
   note.className = 'note'+(e.type==='photo'?' photo':'')+(e.wide?' wide':'');
@@ -445,36 +460,109 @@ function renderEntry(e, i){
     const multi = urls.length > 1;
     if(multi) note.classList.add('stacked');
 
-    note.innerHTML = `<img src="${urls[0]||''}" alt="Note from ${e.contributor}" loading="lazy">
-                      <div class="from">${e.contributor}</div>`;
-    const img = note.querySelector('img');
+    const img = document.createElement('img');
+    img.src = urls[0] || '';
+    img.alt = 'Note from ' + (e.contributor || '');
+    img.loading = 'lazy';
     img.addEventListener('load', rebuildLensClone);
+    const from = document.createElement('div');
+    from.className = 'from';
+    from.textContent = e.contributor || '';
+    note.append(img, from);
 
     if(multi){
-      note.insertAdjacentHTML('beforeend',
-        `<div class="stack-arrow prev" aria-hidden="true">‹</div>
-         <div class="stack-arrow next" aria-hidden="true">›</div>
-         <div class="stack-count"><span class="cur">1</span> / ${urls.length}</div>`);
-      const counter = note.querySelector('.stack-count .cur');
+      const counter = addStackControls(note, urls.length);
       let idx = 0;
       note._stack = {
         go(dir){
           idx = (idx + dir + urls.length) % urls.length;
-          img.src = urls[idx];                 // 'load' handler refreshes the lens copy
+          img.src = urls[idx];               // 'load' handler refreshes the lens copy
           counter.textContent = idx + 1;
         }
       };
     }
   } else {
-    note.innerHTML = `<div class="msg" style="font-family:${e.font||'Arial'},sans-serif">${e.message}</div>
-                      <div class="from">${e.contributor}</div>`;
+    const msg = document.createElement('div');
+    msg.className = 'msg';
+    msg.style.fontFamily = (e.font || 'Arial') + ',sans-serif';
+    msg.textContent = e.message || '';       // textContent = no HTML injection
+    const from = document.createElement('div');
+    from.className = 'from';
+    from.textContent = e.contributor || '';
+    note.append(msg, from);
+    note._textFont = e.font || 'Arial';
   }
   addFrogs(note, !!e.wide);
   return note;
 }
 
+/* ── split an over-long text note into ~10-line pages ── */
+const TEXT_MAX_LINES = 10;
+
+function splitIntoPages(text, measureEl, maxLines){
+  const cs = getComputedStyle(measureEl);
+  let lh = parseFloat(cs.lineHeight);
+  if(!isFinite(lh)) lh = parseFloat(cs.fontSize) * 1.3;
+  const maxH = lh * maxLines + 1;
+
+  measureEl.textContent = text;
+  if(measureEl.scrollHeight <= maxH) return [text];
+
+  const tokens = text.split(/(\s+)/);   // words + whitespace (keeps newlines)
+  const pages = [];
+  let cur = '';
+  for(const tok of tokens){
+    measureEl.textContent = cur + tok;
+    if(measureEl.scrollHeight > maxH && cur.trim() !== ''){
+      pages.push(cur.replace(/\s+$/,''));
+      cur = tok.replace(/^\s+/,'');
+    } else {
+      cur += tok;
+    }
+  }
+  if(cur.trim() !== '') pages.push(cur.replace(/\s+$/,''));
+  return pages.length ? pages : [text];
+}
+
+/* after notes are in the DOM (so width is known), paginate long text notes */
+function paginateTextNotes(){
+  collage.querySelectorAll('.note:not(.photo)').forEach(note => {
+    const msg = note.querySelector('.msg');
+    if(!msg) return;
+    const full = msg.textContent;
+
+    /* quick fit check at the normal (non-stack) width */
+    const cs = getComputedStyle(msg);
+    let lh = parseFloat(cs.lineHeight);
+    if(!isFinite(lh)) lh = parseFloat(cs.fontSize) * 1.3;
+    msg.textContent = full;
+    if(msg.scrollHeight <= lh * TEXT_MAX_LINES + 1) return;   // fits → single card
+
+    /* it's a stack: apply stack styling FIRST so the message narrows to make
+       room for the arrows, THEN paginate at that final width */
+    note.classList.add('stacked','text-stack');
+    const pages = splitIntoPages(full, msg, TEXT_MAX_LINES);
+    msg.textContent = pages[0];
+    const counter = addStackControls(note, pages.length);
+    let idx = 0;
+    note._stack = {
+      go(dir){
+        idx = (idx + dir + pages.length) % pages.length;
+        msg.textContent = pages[idx];
+        counter.textContent = idx + 1;
+        rebuildLensClone();   // text change fires no img-load, so refresh here
+      }
+    };
+  });
+}
+
 async function loadEntries(){
-  collage.innerHTML = '<div class="board-loading">🐸 The frogs are gathering your notes...</div>';
+  /* remove notes/messages but KEEP #lens and #handle so the lens survives reloads */
+  collage.querySelectorAll('.note, .board-loading').forEach(n => n.remove());
+  const loading = document.createElement('div');
+  loading.className = 'board-loading';
+  loading.textContent = '🐸 The frogs are gathering your notes...';
+  collage.appendChild(loading);
 
   const {data, error} = await sb
     .from(TABLE_NAME)
@@ -483,13 +571,19 @@ async function loadEntries(){
     .order('sort_order', {ascending:true})
     .order('created_at', {ascending:true});
 
-  if(error){ collage.innerHTML = '<div class="board-loading">Could not load entries — please refresh.</div>'; return; }
+  loading.remove();
+  if(error){
+    const msg = document.createElement('div');
+    msg.className = 'board-loading';
+    msg.textContent = 'Could not load entries — please refresh.';
+    collage.appendChild(msg);
+    return;
+  }
 
-  collage.innerHTML = '';
   (data||[]).forEach((e,i) => collage.appendChild(renderEntry(e,i)));
-
-  /* set up lens now that notes exist */
-  initLens();
+  paginateTextNotes();   // split long messages into 10-line stacks (needs final width)
+  initLens();            // first load: build lens + listeners (idempotent thereafter)
+  rebuildLensClone();    // every load: refresh the magnified copy
 }
 
 /* ── magnifying lens ── */
@@ -580,19 +674,22 @@ function initLens(){
   lb.addEventListener('click',()=>lb.classList.remove('open'));
   document.addEventListener('keydown',ev=>{ if(ev.key==='Escape') lb.classList.remove('open'); });
   collage.addEventListener('click',ev=>{
-    const note=ev.target.closest('.note.photo'); if(!note) return;
-    /* multi-photo stack: click right half = next, left half = back */
+    const note=ev.target.closest('.note'); if(!note || !collage.contains(note)) return;
+    /* any stack (photo or text): click right half = next, left half = back */
     if(note._stack){
       const r=note.getBoundingClientRect();
       note._stack.go((ev.clientX-r.left) > r.width/2 ? 1 : -1);
       return;
     }
     /* single photo: lightbox only when the lens is off */
-    if(lensOn) return;
-    const img=note.querySelector('img'), from=note.querySelector('.from')?.textContent||'';
-    lb.querySelector('img').src=img.src; lb.querySelector('img').alt=img.alt;
-    lb.querySelector('.caption').textContent=from;
-    lb.classList.add('open');
+    if(note.classList.contains('photo')){
+      if(lensOn) return;
+      const img=note.querySelector('img'); if(!img) return;
+      const from=note.querySelector('.from')?.textContent||'';
+      lb.querySelector('img').src=img.src; lb.querySelector('img').alt=img.alt;
+      lb.querySelector('.caption').textContent=from;
+      lb.classList.add('open');
+    }
   });
 }
 
